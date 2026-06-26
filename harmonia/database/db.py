@@ -145,6 +145,27 @@ class Database:
         ).fetchone()
         return row["id"]
 
+    def get_track(self, track_id: int) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM tracks WHERE id = ?", (track_id,)
+        ).fetchone()
+
+    def get_track_by_path(self, path: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM tracks WHERE path = ?", (path,)
+        ).fetchone()
+
+    def iter_tracks(self) -> list[sqlite3.Row]:
+        return self.conn.execute("SELECT * FROM tracks ORDER BY id").fetchall()
+
+    def update_track_path(self, old_path: str, new_path: str) -> None:
+        from pathlib import PurePath
+
+        self.conn.execute(
+            "UPDATE tracks SET path = ?, filename = ? WHERE path = ?",
+            (new_path, PurePath(new_path).name, old_path),
+        )
+
     def paths_under(self, root: str) -> set[str]:
         prefix = root.rstrip("/") + "/"
         rows = self.conn.execute(
@@ -175,6 +196,38 @@ class Database:
         return self.conn.execute(
             "SELECT * FROM scan_history ORDER BY id DESC LIMIT 1"
         ).fetchone()
+
+    # -- tag history (reversible edits) ------------------------------------
+
+    def record_tag_changes(
+        self, track_id: int | None, path: str, changes, source: str
+    ) -> None:
+        """Persist before/after values so any edit can be explained/reverted.
+
+        ``changes`` is an iterable of objects with ``field``/``old``/``new``.
+        """
+        when = _now()
+        rows = [
+            (track_id, path, c.field,
+             None if c.old is None else str(c.old),
+             None if c.new is None else str(c.new),
+             source, when)
+            for c in changes
+        ]
+        if rows:
+            self.conn.executemany(
+                "INSERT INTO tag_history"
+                "(track_id, path, field, old_value, new_value, source, changed_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                rows,
+            )
+            self.conn.commit()
+
+    def tag_history(self, track_id: int) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM tag_history WHERE track_id = ? ORDER BY id DESC",
+            (track_id,),
+        ).fetchall()
 
     # -- stats / config ----------------------------------------------------
 

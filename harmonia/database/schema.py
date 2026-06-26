@@ -137,10 +137,32 @@ def _migration_v1(conn: sqlite3.Connection) -> None:
     conn.executescript(_V1)
 
 
+# --- v2: tag edit history (reversible metadata writes) ----------------------
+
+_V2 = """
+CREATE TABLE tag_history (
+    id         INTEGER PRIMARY KEY,
+    track_id   INTEGER,
+    path       TEXT,
+    field      TEXT NOT NULL,
+    old_value  TEXT,
+    new_value  TEXT,
+    source     TEXT,
+    changed_at TEXT
+);
+CREATE INDEX idx_tag_history_track ON tag_history(track_id);
+"""
+
+
+def _migration_v2(conn: sqlite3.Connection) -> None:
+    conn.executescript(_V2)
+
+
 # Ordered list of (target_version, apply_fn). Append new migrations; never
 # edit a released one.
 MIGRATIONS = [
     (1, _migration_v1),
+    (2, _migration_v2),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]

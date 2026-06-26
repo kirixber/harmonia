@@ -110,6 +110,22 @@ class Scanner:
             result.scanned_files += 1  # counted as scanned, but unchanged
             return
 
+        self.index_file(file_path)
+
+        result.scanned_files += 1
+        if is_new:
+            result.new_files += 1
+        else:
+            result.updated_files += 1
+
+    def index_file(self, file_path: str | Path) -> int:
+        """Read one file and upsert its row, ignoring the incremental check.
+
+        Used by the scan loop for changed files and by the metadata/rename
+        engines to refresh the DB after a write or move.
+        """
+        file_path = Path(file_path)
+        stat = file_path.stat()
         tags, info = self.reader.read(file_path)
         artist_id = self.db.get_or_create_artist(
             tags.artist, mbid=tags.musicbrainz_artist_id
@@ -123,9 +139,8 @@ class Scanner:
             total_tracks=tags.total_tracks,
             mbid=tags.musicbrainz_album_id,
         )
-
         track = Track(
-            path=path_str,
+            path=str(file_path),
             filename=file_path.name,
             extension=file_path.suffix.lower(),
             file_size=stat.st_size,
@@ -136,13 +151,7 @@ class Scanner:
             artist_id=artist_id,
             album_id=album_id,
         )
-        self.db.upsert_track(track)
-
-        result.scanned_files += 1
-        if is_new:
-            result.new_files += 1
-        else:
-            result.updated_files += 1
+        return self.db.upsert_track(track)
 
 
 def _close(a: float | None, b: float, eps: float = 1e-4) -> bool:
