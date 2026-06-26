@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Harmonia runtime data
+harmonia.db
+harmonia.db-wal
+harmonia.db-shm
+*.harmonia.db
+logs/
+cache/
+
+# Editors / OS
+.idea
+.idea/
+.vscode
+.vscode/
+.DS_Store
+
+# Local environment / personal dotfiles that happen to live in this dir
+# (not part of the Harmonia project)
+.bashrc
+.bash_profile
+.zshrc
+.zprofile
+.profile
+.gitconfig
+.gitmodules
+.ripgreprc
+.mcp.json
+.claude/
+SKILL.md

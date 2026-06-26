@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harmonia"
+version = "0.1.0"
+description = "Open-source music library manager for collectors. One backend, many frontends."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+authors = [{ name = "Harmonia contributors" }]
+dependencies = [
+    "mutagen>=1.47",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+harmonia = "harmonia.cli.app:main"
+
+[project.urls]
+Homepage = "https://github.com/harmonia"
+
+[tool.hatch.build.targets.wheel]
+packages = ["harmonia"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
