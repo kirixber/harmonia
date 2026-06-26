@@ -113,6 +113,22 @@ class Library:
             track_id, change_dict, dry_run=dry_run, source="normalize", force=True
         )
 
+    def normalize_all(
+        self, *, dry_run: bool = True, progress: ProgressCallback | None = None
+    ) -> list[tuple[int, EditOutcome]]:
+        """Normalize every track. Defaults to dry-run (preview only)."""
+        from ..jobs.job import Progress
+
+        rows = self.db.iter_tracks()
+        out: list[tuple[int, EditOutcome]] = []
+        for index, row in enumerate(rows, start=1):
+            outcome = self.normalize_track(row["id"], dry_run=dry_run)
+            if outcome.write and outcome.write.changes:
+                out.append((row["id"], outcome))
+            if progress:
+                progress(Progress(index, len(rows), Path(row["path"]).name))
+        return out
+
     @staticmethod
     def _apply_changes(tags: TrackTags, changes: dict) -> TrackTags:
         from dataclasses import fields as dc_fields

@@ -35,7 +35,37 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("path", help="Directory to scan recursively.")
 
     sub.add_parser("stats", help="Show library statistics.")
+
+    report = sub.add_parser("report", help="Library metadata health report.")
+    report.add_argument("--json", dest="json_path", help="Write report as JSON.")
+    report.add_argument("--csv", dest="csv_path", help="Write report as CSV.")
+
+    norm = sub.add_parser("normalize", help="Normalize tags across the library.")
+    norm.add_argument("--apply", action="store_true",
+                      help="Write changes (default previews only).")
+
+    rename = sub.add_parser("rename", help="Rename files from a metadata template.")
+    rename.add_argument("template", help="Preset name or custom pattern.")
+    rename.add_argument("--base", dest="base_dir", help="Base directory for output.")
+    rename.add_argument("--apply", action="store_true",
+                        help="Move files (default previews only).")
+
+    edit = sub.add_parser("edit", help="Edit one track's tags.")
+    edit.add_argument("track_id", type=int)
+    edit.add_argument("--set", dest="sets", action="append", metavar="FIELD=VALUE",
+                      default=[], help="Field assignment (repeatable).")
+    edit.add_argument("--dry-run", action="store_true", help="Preview without writing.")
     return parser
+
+
+def _parse_sets(sets: list[str]) -> dict:
+    changes: dict[str, str] = {}
+    for item in sets:
+        if "=" not in item:
+            raise SystemExit(f"--set expects FIELD=VALUE, got: {item!r}")
+        field, value = item.split("=", 1)
+        changes[field.strip()] = value
+    return changes
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,6 +82,20 @@ def main(argv: list[str] | None = None) -> int:
             actions.run_scan(library, console, args.path)
         elif args.command == "stats":
             actions.show_reports(library, console)
+        elif args.command == "report":
+            actions.show_metadata_report(library, console, args.json_path, args.csv_path)
+        elif args.command == "normalize":
+            actions.run_normalize(library, console, apply=args.apply)
+        elif args.command == "rename":
+            actions.run_rename(library, console, args.template,
+                               base_dir=args.base_dir, apply=args.apply)
+        elif args.command == "edit":
+            try:
+                actions.run_edit(library, console, args.track_id,
+                                 _parse_sets(args.sets), apply=not args.dry_run)
+            except (KeyError, ValueError) as exc:
+                console.print(f"[red]{exc}[/red]")
+                return 1
     return 0
 
 

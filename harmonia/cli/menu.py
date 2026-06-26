@@ -14,6 +14,8 @@ from rich.prompt import Prompt
 from rich.rule import Rule
 from rich.text import Text
 
+from .metadata_menu import run_metadata_menu
+
 from .. import __version__
 from ..core.library import Library
 from . import actions
@@ -74,7 +76,7 @@ def _on_artwork(library: Library, console: Console) -> None:
 
 
 def _on_metadata(library: Library, console: Console) -> None:
-    actions.not_implemented(console, "Metadata editing")
+    run_metadata_menu(library, console)
 
 
 def _on_duplicates(library: Library, console: Console) -> None:

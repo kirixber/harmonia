@@ -98,6 +98,98 @@ def show_settings(library: Library, console: Console) -> None:
     console.print("[dim]Editable settings arrive with provider config in v0.4.[/dim]")
 
 
+def show_metadata_report(
+    library: Library, console: Console, json_path=None, csv_path=None
+) -> None:
+    report = library.metadata_report()
+    table = Table(title="Metadata report", show_header=True, header_style="bold")
+    table.add_column("Category")
+    table.add_column("Count", justify="right")
+    for category, count in report.summary.items():
+        style = "red" if count else "dim"
+        table.add_row(category.replace("_", " "), f"[{style}]{count}[/{style}]")
+    console.print(Panel(table, border_style="cyan"))
+    console.print(f"[dim]{report.total} issue(s) across the library.[/dim]")
+
+    if json_path:
+        report.to_json(json_path)
+        console.print(f"Wrote JSON → [bold]{json_path}[/bold]")
+    if csv_path:
+        report.to_csv(csv_path)
+        console.print(f"Wrote CSV → [bold]{csv_path}[/bold]")
+
+
+def _changes_table(title: str, rows: list[tuple[str, str]]) -> Table:
+    table = Table(title=title, show_header=True, header_style="bold")
+    table.add_column("Track")
+    table.add_column("Change")
+    for name, change in rows:
+        table.add_row(name, change)
+    return table
+
+
+def run_normalize(library: Library, console: Console, apply: bool = False) -> None:
+    outcomes = library.normalize_all(dry_run=not apply)
+    if not outcomes:
+        console.print("[green]Nothing to normalize — tags already clean.[/green]")
+        return
+    rows = []
+    for tid, outcome in outcomes:
+        name = Path(library.db.get_track(tid)["path"]).name
+        for change in outcome.write.changes:
+            rows.append((name, str(change)))
+    verb = "Applied" if apply else "Would change (preview)"
+    console.print(Panel(_changes_table(verb, rows), border_style="yellow"))
+    if not apply:
+        console.print("[dim]Re-run with --apply to write these changes.[/dim]")
+
+
+def run_rename(
+    library: Library, console: Console, template: str, base_dir=None, apply: bool = False
+) -> None:
+    plans = library.rename_all(template, base_dir=base_dir, dry_run=not apply)
+    table = Table(title="Rename plan", show_header=True, header_style="bold")
+    table.add_column("Status")
+    table.add_column("From → To")
+    shown = 0
+    for plan in plans:
+        if plan.status.value in ("unchanged",):
+            continue
+        color = {"rename": "green", "conflict": "red", "missing": "yellow"}.get(
+            plan.status.value, "white"
+        )
+        dest = Path(plan.new_path).name if plan.new_path else "—"
+        table.add_row(f"[{color}]{plan.status.value}[/{color}]",
+                      f"{Path(plan.old_path).name} → {dest}")
+        shown += 1
+    if shown == 0:
+        console.print("[green]All files already match the template.[/green]")
+        return
+    console.print(Panel(table, border_style="cyan"))
+    if not apply:
+        console.print("[dim]Preview only. Re-run with --apply to move files.[/dim]")
+
+
+def run_edit(
+    library: Library, console: Console, track_id: int, changes: dict, apply: bool = True
+) -> None:
+    outcome = library.edit_track(track_id, changes, dry_run=not apply)
+    if outcome.blocked:
+        console.print("[red]Edit blocked by validation errors:[/red]")
+        for issue in outcome.issues:
+            if issue.severity.value == "error":
+                console.print(f"  • {issue.field}: {issue.message} — {issue.suggestion}")
+        return
+    if outcome.write is None or not outcome.write.changes:
+        console.print("[dim]No changes — values already match.[/dim]")
+        return
+    rows = [(str(track_id), str(c)) for c in outcome.write.changes]
+    verb = "Applied" if apply else "Would change (preview)"
+    console.print(Panel(_changes_table(verb, rows), border_style="green"))
+    if outcome.write.errors:
+        console.print(f"[red]Errors:[/red] {', '.join(outcome.write.errors)}")
+
+
 def not_implemented(console: Console, feature: str) -> None:
     version = PLANNED.get(feature, "a later release")
     console.print(
