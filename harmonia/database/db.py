@@ -158,6 +158,20 @@ class Database:
     def iter_tracks(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM tracks ORDER BY id").fetchall()
 
+    def tracks_with_names(self) -> list[sqlite3.Row]:
+        """Tracks joined with resolved artist/album names, for reporting."""
+        return self.conn.execute(
+            "SELECT t.id, t.path, t.title, t.track_number, t.disc_number, "
+            "       t.year, t.genre, t.isrc, t.duration, t.codec, t.bitrate, "
+            "       t.sample_rate, t.bit_depth, t.file_size, "
+            "       ar.name AS artist_name, al.name AS album_name, "
+            "       al.album_artist AS album_artist "
+            "FROM tracks t "
+            "LEFT JOIN artists ar ON t.artist_id = ar.id "
+            "LEFT JOIN albums  al ON t.album_id = al.id "
+            "ORDER BY t.id"
+        ).fetchall()
+
     def update_track_path(self, old_path: str, new_path: str) -> None:
         from pathlib import PurePath
 

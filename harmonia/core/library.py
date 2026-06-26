@@ -165,6 +165,14 @@ class Library:
                 progress(Progress(index, len(rows), Path(plan.old_path).name))
         return plans
 
+    # -- reports -----------------------------------------------------------
+
+    def metadata_report(self):
+        """Library-wide metadata health report (see core.reports)."""
+        from .reports import generate_metadata_report
+
+        return generate_metadata_report(self.db.tracks_with_names())
+
     # -- statistics --------------------------------------------------------
 
     def stats(self) -> dict:
