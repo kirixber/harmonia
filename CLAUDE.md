@@ -4,9 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-**v0.1 implemented** (repo scaffold, SQLite layer + migrations, incremental scanner, Mutagen
-metadata reader, core `Library` facade, Rich CLI main menu). Remaining phases (v0.2+) are still
-spec-only. The design docs (`architecture.md`, `database.md`, `metadata_engine.md`,
+**v0.1 + v0.2 implemented.** v0.1: repo scaffold, SQLite layer + migrations, incremental scanner,
+Mutagen metadata reader, core `Library` facade, Rich CLI main menu. v0.2: tag normalization +
+validation, transaction-like tag write engine with reversible `tag_history` (schema v2), template
+rename engine (dry-run by default, conflict-safe), and a metadata health report (CSV/JSON).
+Remaining phases (v0.3+) are still spec-only. The design docs (`architecture.md`, `database.md`,
+`metadata_engine.md`,
 `artwork_pipeline.md`, `duplicate_detection.md`, `providers.md`, `plugin_system.md`, `prd.md`,
 `implementation_plan.md`) are the authoritative blueprint — update the relevant spec whenever a
 structural decision changes.
@@ -21,6 +24,10 @@ pip install -e ".[dev]"        # install with dev deps (pytest)
 harmonia                       # launch interactive main menu (default)
 harmonia scan <path>           # index a directory recursively
 harmonia stats                 # library statistics
+harmonia report [--json F] [--csv F]   # metadata health report
+harmonia normalize [--apply]           # normalize tags (preview unless --apply)
+harmonia rename <template> [--base D] [--apply]   # rename from a template
+harmonia edit <id> --set FIELD=VALUE [--dry-run]  # edit one track's tags
 python -m harmonia ...         # same entry point without the console script
 pytest                         # run the suite
 pytest tests/test_scanner.py::test_incremental_skip_unchanged   # single test
