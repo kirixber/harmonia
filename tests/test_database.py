@@ -49,3 +49,31 @@ def test_config_kv():
         assert db.config_get("missing", "fallback") == "fallback"
         db.config_set("theme", "dark")
         assert db.config_get("theme") == "dark"
+
+
+def test_search_tracks_by_title_artist_album():
+    with Database(":memory:") as db:
+        artist = db.get_or_create_artist("Daft Punk")
+        album = db.get_or_create_album("Discovery", artist_id=artist, year=2001,
+                                       album_artist="Daft Punk")
+        track = Track(
+            path="/music/one_more_time.flac", filename="one_more_time.flac",
+            extension=".flac", file_size=100, modified_time=1.0,
+        )
+        track.tags.title = "One More Time"
+        track.artist_id = artist
+        track.album_id = album
+        db.upsert_track(track)
+
+        # Match by title (case-insensitive, partial).
+        by_title = db.search_tracks("more time")
+        assert [r["title"] for r in by_title] == ["One More Time"]
+        assert by_title[0]["artist_name"] == "Daft Punk"
+        assert by_title[0]["album_name"] == "Discovery"
+
+        # Match by artist and by album too.
+        assert len(db.search_tracks("daft")) == 1
+        assert len(db.search_tracks("discovery")) == 1
+
+        # No false positives.
+        assert db.search_tracks("nonexistent") == []

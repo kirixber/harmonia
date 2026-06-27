@@ -158,6 +158,28 @@ class Database:
     def iter_tracks(self) -> list[sqlite3.Row]:
         return self.conn.execute("SELECT * FROM tracks ORDER BY id").fetchall()
 
+    def search_tracks(self, query: str, limit: int = 50) -> list[sqlite3.Row]:
+        """Find tracks whose title/artist/album match ``query`` (case-insensitive).
+
+        Returns rows with resolved artist/album names so frontends can show a
+        human-friendly picker instead of asking users for internal IDs.
+        """
+        like = f"%{query.strip()}%"
+        return self.conn.execute(
+            "SELECT t.id, t.path, t.title, t.duration, t.codec, t.bitrate, "
+            "       t.sample_rate, t.bit_depth, "
+            "       ar.name AS artist_name, al.name AS album_name "
+            "FROM tracks t "
+            "LEFT JOIN artists ar ON t.artist_id = ar.id "
+            "LEFT JOIN albums  al ON t.album_id = al.id "
+            "WHERE t.title LIKE ? COLLATE NOCASE "
+            "   OR ar.name LIKE ? COLLATE NOCASE "
+            "   OR al.name LIKE ? COLLATE NOCASE "
+            "ORDER BY t.title, t.id "
+            "LIMIT ?",
+            (like, like, like, limit),
+        ).fetchall()
+
     def tracks_with_names(self) -> list[sqlite3.Row]:
         """Tracks joined with resolved artist/album names, for reporting."""
         return self.conn.execute(
