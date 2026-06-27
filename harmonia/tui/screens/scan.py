@@ -5,8 +5,9 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widgets import Button, Input, Static, DataTable
 
+from textual import work
+
 from .base import BaseScreen
-from ...core.library import Library
 from ...jobs.job import Progress
 
 
@@ -28,9 +29,9 @@ class ScanScreen(BaseScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "scan-btn":
-            self._run_scan()
+            self._start_scan()
 
-    def _run_scan(self) -> None:
+    def _start_scan(self) -> None:
         path_input = self.query_one("#scan-path", Input)
         target = Path(path_input.value).expanduser()
         if not target.exists():
@@ -39,22 +40,44 @@ class ScanScreen(BaseScreen):
             )
             return
 
+        self.query_one("#scan-btn", Button).disabled = True
+        self.query_one("#scan-progress", Static).update("Scanning…")
+        self._scan_worker(target)
+
+    @work(thread=True, exclusive=True)
+    def _scan_worker(self, target: Path) -> None:
+        """Run the blocking scan off the UI thread.
+
+        Textual widgets are only safe to touch from the UI thread, so every
+        update is marshalled back via ``self.app.call_from_thread``.
+        """
         progress_label = self.query_one("#scan-progress", Static)
-        progress_label.update("Scanning…")
 
         def on_progress(p: Progress) -> None:
-            self.call_from_thread(
-                progress_label.update, f"Indexing: {p.done}/{p.total} — {p.message[:40]}"
+            self.app.call_from_thread(
+                progress_label.update,
+                f"Indexing: {p.done}/{p.total} — {p.message[:40]}",
             )
 
         try:
             result = self.library.scan(target, progress=on_progress)
         except Exception as exc:
-            progress_label.update(f"[red]Error:[/red] {exc}")
+            self.app.call_from_thread(
+                progress_label.update, f"[red]Error:[/red] {exc}"
+            )
+            self.app.call_from_thread(self._enable_button)
             return
 
-        progress_label.update("")
+        self.app.call_from_thread(self._show_result, result)
+        self.app.call_from_thread(self._enable_button)
 
+    def _enable_button(self) -> None:
+        self.query_one("#scan-btn", Button).disabled = False
+
+    def _show_result(self, result) -> None:
+        self.query_one("#scan-progress", Static).update(
+            f"[green]Done.[/green] Scanned {result.scanned_files} file(s)."
+        )
         dt = self.query_one("#scan-results", DataTable)
         dt.clear()
         dt.add_row("Scanned", str(result.scanned_files))
