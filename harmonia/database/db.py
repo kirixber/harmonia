@@ -172,6 +172,19 @@ class Database:
             "ORDER BY t.id"
         ).fetchall()
 
+    def tracks_for_dedup(self) -> list[sqlite3.Row]:
+        """Fields the duplicate engine needs, with resolved artist/album names."""
+        return self.conn.execute(
+            "SELECT t.id, t.path, t.title, t.musicbrainz_track_id, t.isrc, "
+            "       t.duration, t.track_number, t.codec, t.bitrate, "
+            "       t.sample_rate, t.bit_depth, t.file_size, t.extension, "
+            "       t.genre, "
+            "       ar.name AS artist_name, al.name AS album_name "
+            "FROM tracks t "
+            "LEFT JOIN artists ar ON t.artist_id = ar.id "
+            "LEFT JOIN albums  al ON t.album_id = al.id"
+        ).fetchall()
+
     def update_track_path(self, old_path: str, new_path: str) -> None:
         from pathlib import PurePath
 
@@ -242,6 +255,65 @@ class Database:
             "SELECT * FROM tag_history WHERE track_id = ? ORDER BY id DESC",
             (track_id,),
         ).fetchall()
+
+    # -- provider cache (metadata responses only; never image bytes) -------
+
+    def provider_cache_get(
+        self, provider: str, request_hash: str, max_age_days: int
+    ) -> str | None:
+        row = self.conn.execute(
+            "SELECT response_json, created_at FROM provider_cache "
+            "WHERE provider = ? AND request_hash = ?",
+            (provider, request_hash),
+        ).fetchone()
+        if not row or not row["created_at"]:
+            return None
+        try:
+            created = datetime.fromisoformat(row["created_at"])
+        except ValueError:
+            return None
+        age = (datetime.now(timezone.utc) - created).total_seconds()
+        if age > max_age_days * 86400:
+            self.conn.execute(
+                "DELETE FROM provider_cache WHERE provider = ? AND request_hash = ?",
+                (provider, request_hash),
+            )
+            self.conn.commit()
+            return None
+        return row["response_json"]
+
+    def provider_cache_set(
+        self, provider: str, request_hash: str, response_json: str
+    ) -> None:
+        self.conn.execute(
+            "INSERT INTO provider_cache(provider, request_hash, response_json, created_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(provider, request_hash) DO UPDATE SET "
+            "response_json = excluded.response_json, created_at = excluded.created_at",
+            (provider, request_hash, response_json, _now()),
+        )
+        self.conn.commit()
+
+    # -- artwork (metadata rows only; binaries live on disk) ---------------
+
+    def get_artwork(self, sha256: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            "SELECT * FROM artwork WHERE sha256 = ?", (sha256,)
+        ).fetchone()
+
+    def upsert_artwork(
+        self, sha256: str, width: int, height: int, mime_type: str,
+        file_size: int, local_path: str, source: str,
+    ) -> None:
+        self.conn.execute(
+            "INSERT INTO artwork(sha256, width, height, mime_type, file_size, "
+            "local_path, source, downloaded_at) VALUES (?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(sha256) DO UPDATE SET width=excluded.width, "
+            "height=excluded.height, mime_type=excluded.mime_type, "
+            "file_size=excluded.file_size, local_path=excluded.local_path, "
+            "source=excluded.source, downloaded_at=excluded.downloaded_at",
+            (sha256, width, height, mime_type, file_size, local_path, source, _now()),
+        )
+        self.conn.commit()
 
     # -- stats / config ----------------------------------------------------
 
