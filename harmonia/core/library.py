@@ -206,6 +206,12 @@ class Library:
         tracks = [DupTrack.from_row(r) for r in rows]
         return build_report(tracks, review_threshold=review_threshold)
 
+    # -- search ------------------------------------------------------------
+
+    def search_tracks(self, query: str, limit: int = 50) -> list:
+        """Find tracks by title/artist/album for frontend pickers."""
+        return self.db.search_tracks(query, limit=limit)
+
     # -- statistics --------------------------------------------------------
 
     def stats(self) -> dict:
