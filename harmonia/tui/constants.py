@@ -7,7 +7,7 @@ MENU_ENTRIES = [
     ("2", "Artwork", "ArtworkScreen"),
     ("3", "Metadata", "MetadataScreen"),
     ("4", "Duplicates", "DuplicatesScreen"),
-    ("5", "Audio Quality", None),
+    ("5", "Audio Quality", "QualityScreen"),
     ("6", "Reports", "ReportsScreen"),
     ("7", "Settings", "SettingsScreen"),
 ]
