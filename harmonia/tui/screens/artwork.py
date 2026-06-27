@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from textual.app import ComposeResult
@@ -33,15 +32,15 @@ class ArtworkScreen(BaseScreen):
         dt.add_columns("Provider", "URL", "Size", "Format", "Confidence")
         dt.cursor_type = "row"
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "artwork-btn":
-            asyncio.run(self._search())
+            await self._search()
         elif event.button.id == "artwork-download":
-            asyncio.run(self._download_selected())
+            await self._download_selected()
         elif event.button.id == "artwork-save":
-            asyncio.run(self._save_selected())
+            await self._save_selected()
         elif event.button.id == "artwork-embed":
-            asyncio.run(self._embed_selected())
+            await self._embed_selected()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         dt = self.query_one("#artwork-results", DataTable)
