@@ -138,13 +138,28 @@ class QualityScreen(BaseScreen):
         self.query_one("#quality-metrics", DataTable).clear()
         self.query_one("#quality-progress", Static).update("Selection cleared.")
 
+    @staticmethod
+    def _is_lossless(codec: str) -> bool:
+        return codec.upper() in (
+            "FLAC", "ALAC", "APE", "WAVPACK", "WAVE", "WAV", "AIFF"
+        )
+
     def _add_metrics_row(self, dt: DataTable, track_id: int, m) -> None:
+        # Bit depth is only meaningful for lossless formats; for lossy codecs
+        # it is genuinely absent, so show "n/a" instead of a misleading "?".
+        if m.bit_depth:
+            bit_depth = f"{m.bit_depth}-bit"
+        elif m.codec and not self._is_lossless(m.codec):
+            bit_depth = "n/a"
+        else:
+            bit_depth = "?"
+
         dt.add_row(
             self._track_name(track_id),
             m.codec or "?",
             f"{m.bitrate // 1000} kbps" if m.bitrate else "?",
             f"{m.sample_rate:,} Hz" if m.sample_rate else "?",
-            f"{m.bit_depth}-bit" if m.bit_depth else "?",
+            bit_depth,
             str(m.channels) if m.channels else "?",
             human_duration(m.duration),
         )
