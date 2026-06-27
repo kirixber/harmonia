@@ -40,6 +40,9 @@ class ScanScreen(BaseScreen):
             )
             return
 
+        # Touch the Library now so its SQLite connection is created on the UI
+        # thread (the worker below runs on a separate thread).
+        _ = self.library
         self.query_one("#scan-btn", Button).disabled = True
         self.query_one("#scan-progress", Static).update("Scanning…")
         self._scan_worker(target)

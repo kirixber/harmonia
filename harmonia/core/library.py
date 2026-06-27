@@ -45,8 +45,10 @@ class EditOutcome:
 
 
 class Library:
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        self.db = Database(db_path)
+    def __init__(
+        self, db_path: str | Path | None = None, *, check_same_thread: bool = True
+    ) -> None:
+        self.db = Database(db_path, check_same_thread=check_same_thread)
         self.scanner = Scanner(self.db)
         self.writer = TagWriter(self.scanner.reader)
         self.renamer = Renamer()

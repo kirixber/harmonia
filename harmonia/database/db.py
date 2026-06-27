@@ -23,14 +23,16 @@ class Database:
     location from :func:`harmonia.utils.paths.database_path` is used.
     """
 
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(
+        self, path: str | Path | None = None, *, check_same_thread: bool = True
+    ) -> None:
         if path is None:
             path = database_path()
         self.path = str(path)
         if self.path != ":memory:":
             ensure_dir(Path(self.path).parent)
 
-        self.conn = sqlite3.connect(self.path)
+        self.conn = sqlite3.connect(self.path, check_same_thread=check_same_thread)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         if self.path != ":memory:":
