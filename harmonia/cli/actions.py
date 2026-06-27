@@ -28,7 +28,6 @@ from ..utils.paths import database_path, home_dir, logs_dir
 PLANNED = {
     "Artwork": "v0.4",
     "Metadata editing": "v0.2",
-    "Duplicates": "v0.3",
     "Audio Quality": "v0.5",
 }
 
@@ -188,6 +187,164 @@ def run_edit(
     console.print(Panel(_changes_table(verb, rows), border_style="green"))
     if outcome.write.errors:
         console.print(f"[red]Errors:[/red] {', '.join(outcome.write.errors)}")
+
+
+def show_duplicates(
+    library: Library, console: Console, threshold: int = 75, json_path=None
+) -> None:
+    console.print("Scanning for duplicates …")
+    report = library.duplicate_report(review_threshold=threshold)
+
+    if not report.clusters:
+        console.print("[green]No duplicates found.[/green]")
+        return
+
+    table = Table(title=f"Duplicates (threshold={threshold})", show_header=True, header_style="bold")
+    table.add_column("Confidence")
+    table.add_column("Track A")
+    table.add_column("Track B")
+    table.add_column("Score", justify="right")
+
+    for cluster in report.clusters:
+        for match in cluster.matches:
+            a = cluster.tracks[0]  # simplified - just show first track as reference
+            b = cluster.tracks[1] if len(cluster.tracks) > 1 else a
+            conf_style = {
+                "definite": "red",
+                "high": "orange3",
+                "review": "yellow",
+            }.get(match.confidence.value, "white")
+            table.add_row(
+                f"[{conf_style}]{match.confidence.value}[/{conf_style}]",
+                Path(a.path).name,
+                Path(b.path).name,
+                str(match.score),
+            )
+
+    console.print(Panel(table, border_style="yellow"))
+    console.print(
+        f"[dim]Summary: {report.definite} definite, {report.high} high, {report.review} needs review.[/dim]"
+    )
+
+    if json_path:
+        import json
+        data = {
+            "summary": report.summary(),
+            "clusters": [
+                {
+                    "confidence": c.confidence.value,
+                    "tracks": [{"id": t.id, "path": t.path} for t in c.tracks],
+                    "matches": [
+                        {"a": m.a, "b": m.b, "score": m.score, "signals": m.signals}
+                        for m in c.matches
+                    ],
+                }
+                for c in report.clusters
+            ],
+        }
+        Path(json_path).write_text(json.dumps(data, indent=2))
+        console.print(f"Wrote JSON → [bold]{json_path}[/bold]")
+
+
+async def artwork_search(
+    library: Library, console: Console, artist: str, album: str, limit: int = 10
+) -> None:
+    console.print(f"Searching artwork for [bold]{artist}[/bold] — [bold]{album}[/bold] …")
+    await library.initialize_providers()
+    try:
+        candidates = await library.search_artwork(artist, album, limit=limit)
+    finally:
+        await library.shutdown_providers()
+
+    if not candidates:
+        console.print("[yellow]No artwork found.[/yellow]")
+        return
+
+    table = Table(title="Artwork candidates", show_header=True, header_style="bold")
+    table.add_column("Provider")
+    table.add_column("URL")
+    table.add_column("Size")
+    table.add_column("Format")
+    table.add_column("Confidence", justify="right")
+
+    for c in candidates:
+        table.add_row(
+            c.provider,
+            c.url[:60] + ("…" if len(c.url) > 60 else ""),
+            f"{c.width}x{c.height}" if c.width and c.height else "?",
+            c.format or "?",
+            f"{c.confidence:.0%}",
+        )
+
+    console.print(Panel(table, border_style="cyan"))
+
+
+def quality_analyze(library: Library, console: Console, track_id: int) -> None:
+    metrics = library.analyze_quality(track_id)
+    table = Table(title=f"Quality Analysis (Track {track_id})", show_header=False, box=None)
+    table.add_row("Codec", metrics.codec or "?")
+    table.add_row("Bitrate", f"{metrics.bitrate} kbps" if metrics.bitrate else "?")
+    table.add_row("Sample Rate", f"{metrics.sample_rate} Hz" if metrics.sample_rate else "?")
+    table.add_row("Bit Depth", f"{metrics.bit_depth}-bit" if metrics.bit_depth else "?")
+    table.add_row("Channels", str(metrics.channels) if metrics.channels else "?")
+    table.add_row("Duration", f"{metrics.duration:.1f}s" if metrics.duration else "?")
+    if metrics.dynamic_range is not None:
+        table.add_row("Dynamic Range", f"{metrics.dynamic_range:.1f} dB")
+    if metrics.clipping is not None:
+        table.add_row("Clipping", f"{metrics.clipping:.1f}%")
+    if metrics.true_peak is not None:
+        table.add_row("True Peak", f"{metrics.true_peak:.2f} dBTP")
+    console.print(Panel(table, border_style="cyan"))
+
+
+def quality_compare(library: Library, console: Console, track_ids: list[int]) -> None:
+    metrics_list = library.compare_quality(track_ids)
+    table = Table(title="Quality Comparison", show_header=True, header_style="bold")
+    table.add_column("Track ID")
+    table.add_column("Codec")
+    table.add_column("Bitrate")
+    table.add_column("Sample Rate")
+    table.add_column("Bit Depth")
+    table.add_column("Channels")
+    table.add_column("Duration")
+    for m in metrics_list:
+        table.add_row(
+            str(m.track_id),
+            m.codec or "?",
+            f"{m.bitrate} kbps" if m.bitrate else "?",
+            f"{m.sample_rate} Hz" if m.sample_rate else "?",
+            f"{m.bit_depth}-bit" if m.bit_depth else "?",
+            str(m.channels) if m.channels else "?",
+            f"{m.duration:.1f}s" if m.duration else "?",
+        )
+    console.print(Panel(table, border_style="cyan"))
+
+
+def quality_best(library: Library, console: Console, track_ids: list[int]) -> None:
+    best = library.best_quality(track_ids)
+    if best is None:
+        console.print("[yellow]No valid tracks to compare.[/yellow]")
+        return
+    console.print(f"[green]Best quality:[/green] Track {best}")
+
+
+def quality_fingerprint(library: Library, console: Console, track_id: int) -> None:
+    fp = library.compute_fingerprint(track_id)
+    table = Table(title=f"Fingerprint (Track {track_id})", show_header=False, box=None)
+    table.add_row("AcoustID", fp.acoustid or "Not found")
+    table.add_row("Chromaprint", fp.chromaprint[:80] + "…" if fp.chromaprint and len(fp.chromaprint) > 80 else (fp.chromaprint or "Not computed"))
+    table.add_row("Confidence", f"{fp.confidence:.2f}" if fp.confidence else "N/A")
+    console.print(Panel(table, border_style="cyan"))
+
+
+def quality_replaygain(library: Library, console: Console, track_id: int) -> None:
+    rg = library.compute_replaygain(track_id)
+    table = Table(title=f"ReplayGain (Track {track_id})", show_header=False, box=None)
+    table.add_row("Track Gain", f"{rg.track_gain:.2f} dB" if rg.track_gain else "Not computed")
+    table.add_row("Track Peak", f"{rg.track_peak:.4f}" if rg.track_peak else "Not computed")
+    table.add_row("Album Gain", f"{rg.album_gain:.2f} dB" if rg.album_gain else "Not computed")
+    table.add_row("Album Peak", f"{rg.album_peak:.4f}" if rg.album_peak else "Not computed")
+    console.print(Panel(table, border_style="cyan"))
 
 
 def not_implemented(console: Console, feature: str) -> None:

@@ -55,6 +55,31 @@ def build_parser() -> argparse.ArgumentParser:
     edit.add_argument("--set", dest="sets", action="append", metavar="FIELD=VALUE",
                       default=[], help="Field assignment (repeatable).")
     edit.add_argument("--dry-run", action="store_true", help="Preview without writing.")
+
+    dup = sub.add_parser("duplicates", help="Find duplicate tracks.")
+    dup.add_argument("--threshold", type=int, default=75,
+                     help="Review threshold (default 75).")
+    dup.add_argument("--json", dest="json_path", help="Write report as JSON.")
+
+    artwork = sub.add_parser("artwork", help="Artwork operations.")
+    artwork_sub = artwork.add_subparsers(dest="artwork_cmd")
+    art_search = artwork_sub.add_parser("search", help="Search artwork for album.")
+    art_search.add_argument("artist")
+    art_search.add_argument("album")
+    art_search.add_argument("--limit", type=int, default=10)
+
+    quality = sub.add_parser("quality", help="Audio quality analysis.")
+    quality_sub = quality.add_subparsers(dest="quality_cmd")
+    qual_analyze = quality_sub.add_parser("analyze", help="Analyze track quality.")
+    qual_analyze.add_argument("track_id", type=int)
+    qual_compare = quality_sub.add_parser("compare", help="Compare quality of tracks.")
+    qual_compare.add_argument("track_ids", nargs="+", type=int)
+    qual_best = quality_sub.add_parser("best", help="Find best quality track.")
+    qual_best.add_argument("track_ids", nargs="+", type=int)
+    qual_fp = quality_sub.add_parser("fingerprint", help="Compute fingerprint.")
+    qual_fp.add_argument("track_id", type=int)
+    qual_rg = quality_sub.add_parser("replaygain", help="Compute ReplayGain.")
+    qual_rg.add_argument("track_id", type=int)
     return parser
 
 
@@ -96,6 +121,23 @@ def main(argv: list[str] | None = None) -> int:
             except (KeyError, ValueError) as exc:
                 console.print(f"[red]{exc}[/red]")
                 return 1
+        elif args.command == "duplicates":
+            actions.show_duplicates(library, console, args.threshold, args.json_path)
+        elif args.command == "artwork":
+            if args.artwork_cmd == "search":
+                import asyncio
+                asyncio.run(actions.artwork_search(library, console, args.artist, args.album, args.limit))
+        elif args.command == "quality":
+            if args.quality_cmd == "analyze":
+                actions.quality_analyze(library, console, args.track_id)
+            elif args.quality_cmd == "compare":
+                actions.quality_compare(library, console, args.track_ids)
+            elif args.quality_cmd == "best":
+                actions.quality_best(library, console, args.track_ids)
+            elif args.quality_cmd == "fingerprint":
+                actions.quality_fingerprint(library, console, args.track_id)
+            elif args.quality_cmd == "replaygain":
+                actions.quality_replaygain(library, console, args.track_id)
     return 0
 
 

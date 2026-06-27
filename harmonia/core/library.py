@@ -12,12 +12,16 @@ from pathlib import Path
 
 from ..database import Database
 from ..jobs.job import ProgressCallback
+from ..providers import ProviderManager
 from .metadata.normalize import normalize_tags
 from .metadata.rename import RenamePlan, Renamer, RenameStatus
 from .metadata.validate import Issue, Severity, validate_tags
 from .metadata.writer import TagWriter, WriteResult
 from .models import TrackTags
 from .scanner import ScanResult, Scanner
+from .duplicates import DuplicateReport, build_report, DupTrack
+from .artwork import ArtworkEngine
+from .quality import QualityEngine
 
 # Fields a caller may edit through edit_track.
 _EDITABLE = (
@@ -46,6 +50,11 @@ class Library:
         self.scanner = Scanner(self.db)
         self.writer = TagWriter(self.scanner.reader)
         self.renamer = Renamer()
+        self.quality_engine = QualityEngine(self.db)
+
+        # Provider manager (initialized lazily)
+        self._provider_manager: ProviderManager | None = None
+        self._artwork_engine: ArtworkEngine | None = None
 
     def scan(
         self, path: str | Path, progress: ProgressCallback | None = None
@@ -189,6 +198,14 @@ class Library:
 
         return generate_metadata_report(self.db.tracks_with_names())
 
+    # -- duplicates --------------------------------------------------------
+
+    def duplicate_report(self, review_threshold: int = 75) -> DuplicateReport:
+        """Library-wide duplicate detection report."""
+        rows = self.db.tracks_for_dedup()
+        tracks = [DupTrack.from_row(r) for r in rows]
+        return build_report(tracks, review_threshold=review_threshold)
+
     # -- statistics --------------------------------------------------------
 
     def stats(self) -> dict:
@@ -206,6 +223,64 @@ class Library:
 
     def close(self) -> None:
         self.db.close()
+
+    @property
+    def provider_manager(self) -> ProviderManager:
+        if self._provider_manager is None:
+            from ..providers import ProviderManager
+            from ..providers.dummy import get_dummy_providers
+
+            self._provider_manager = ProviderManager(self.db)
+            for p in get_dummy_providers():
+                self._provider_manager.register(p)
+            # Note: call initialize_all() before using
+        return self._provider_manager
+
+    @property
+    def artwork_engine(self) -> ArtworkEngine:
+        if self._artwork_engine is None:
+            self._artwork_engine = ArtworkEngine(self.db, self.provider_manager)
+        return self._artwork_engine
+
+    async def initialize_providers(self) -> None:
+        """Initialize all registered providers."""
+        await self.provider_manager.initialize_all()
+
+    async def shutdown_providers(self) -> None:
+        """Shutdown all providers."""
+        await self.provider_manager.shutdown_all()
+
+    # -- artwork -------------------------------------------------------------
+
+    async def search_artwork(self, artist: str, album: str, limit: int = 10):
+        """Search for album artwork."""
+        return await self.artwork_engine.search_album(artist, album, limit=limit)
+
+    async def download_artwork(self, candidate) -> bytes | None:
+        """Download artwork for a candidate."""
+        return await self.artwork_engine.download_artwork(candidate)
+
+    # -- audio quality -------------------------------------------------------
+
+    def analyze_quality(self, track_id: int):
+        """Analyze audio quality for a track."""
+        return self.quality_engine.analyze_quality(track_id)
+
+    def compare_quality(self, track_ids: list[int]):
+        """Compare quality across tracks."""
+        return self.quality_engine.compare_quality(track_ids)
+
+    def best_quality(self, track_ids: list[int]) -> int | None:
+        """Return the track ID with best quality."""
+        return self.quality_engine.best_quality(track_ids)
+
+    def compute_fingerprint(self, track_id: int):
+        """Compute acoustic fingerprint."""
+        return self.quality_engine.compute_fingerprint(track_id)
+
+    def compute_replaygain(self, track_id: int):
+        """Compute ReplayGain values."""
+        return self.quality_engine.compute_replaygain(track_id)
 
     def __enter__(self) -> "Library":
         return self

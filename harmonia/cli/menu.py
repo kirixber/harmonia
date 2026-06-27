@@ -72,7 +72,11 @@ def _on_settings(library: Library, console: Console) -> None:
 
 
 def _on_artwork(library: Library, console: Console) -> None:
-    actions.not_implemented(console, "Artwork")
+    from rich.prompt import Prompt
+    artist = Prompt.ask("Artist")
+    album = Prompt.ask("Album")
+    import asyncio
+    asyncio.run(actions.artwork_search(library, console, artist, album, limit=10))
 
 
 def _on_metadata(library: Library, console: Console) -> None:
@@ -80,7 +84,9 @@ def _on_metadata(library: Library, console: Console) -> None:
 
 
 def _on_duplicates(library: Library, console: Console) -> None:
-    actions.not_implemented(console, "Duplicates")
+    from rich.prompt import Prompt, IntPrompt
+    threshold = IntPrompt.ask("Review threshold", default=75)
+    actions.show_duplicates(library, console, threshold=threshold)
 
 
 def _on_audio_quality(library: Library, console: Console) -> None:
