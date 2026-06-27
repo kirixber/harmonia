@@ -260,6 +260,26 @@ class Library:
         """Download artwork for a candidate."""
         return await self.artwork_engine.download_artwork(candidate)
 
+    def store_artwork(self, data: bytes, **kwargs):
+        """Cache artwork bytes to disk (keyed by content hash) and record it."""
+        return self.artwork_engine.store_artwork(data, **kwargs)
+
+    def embed_artwork(
+        self,
+        track_id: int,
+        image,
+        *,
+        mime_type: str = "image/jpeg",
+        dry_run: bool = False,
+        backup: bool = True,
+        only_if_missing: bool = False,
+    ):
+        """Embed cover art into a track's file (dry-run/backup by default)."""
+        return self.artwork_engine.embed_artwork_for_track(
+            track_id, image, mime_type=mime_type, dry_run=dry_run,
+            backup=backup, only_if_missing=only_if_missing,
+        )
+
     # -- audio quality -------------------------------------------------------
 
     def analyze_quality(self, track_id: int):

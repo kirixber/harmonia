@@ -16,6 +16,7 @@ from .screens import (
     ArtworkScreen,
     MetadataScreen,
     DuplicatesScreen,
+    QualityScreen,
     ReportsScreen,
     SettingsScreen,
 )
@@ -25,6 +26,7 @@ SCREEN_MAP = {
     "ArtworkScreen": ArtworkScreen,
     "MetadataScreen": MetadataScreen,
     "DuplicatesScreen": DuplicatesScreen,
+    "QualityScreen": QualityScreen,
     "ReportsScreen": ReportsScreen,
     "SettingsScreen": SettingsScreen,
 }

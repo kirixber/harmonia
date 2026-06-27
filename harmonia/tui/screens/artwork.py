@@ -12,6 +12,9 @@ from .base import BaseScreen
 class ArtworkScreen(BaseScreen):
     TITLE = "Artwork"
 
+    _candidates: list = []
+    _downloaded_data: bytes | None = None
+
     def compose(self) -> ComposeResult:
         with Vertical(id="artwork-area"):
             yield Static("Artwork Search", classes="screen-title")
@@ -25,6 +28,7 @@ class ArtworkScreen(BaseScreen):
             with Horizontal():
                 yield Button("Download Selected", id="artwork-download", variant="primary")
                 yield Button("Save As...", id="artwork-save")
+                yield Input(placeholder="Track ID to embed", id="artwork-track-id")
                 yield Button("Embed in Track", id="artwork-embed")
 
     def on_mount(self) -> None:
@@ -129,4 +133,23 @@ class ArtworkScreen(BaseScreen):
         self.query_one("#artwork-progress", Static).update(f"[green]Saved to {save_path}[/green]")
 
     async def _embed_selected(self) -> None:
-        self.query_one("#artwork-progress", Static).update("[yellow]Embed in track — not yet implemented.[/yellow]")
+        progress = self.query_one("#artwork-progress", Static)
+        if not self._downloaded_data:
+            progress.update("[red]Nothing to embed — download first.[/red]")
+            return
+
+        track_id_str = self.query_one("#artwork-track-id", Input).value.strip()
+        if not track_id_str.isdigit():
+            progress.update("[red]Enter a numeric Track ID to embed into.[/red]")
+            return
+
+        result = self.library.embed_artwork(
+            int(track_id_str), self._downloaded_data, backup=True
+        )
+        if not result.ok:
+            progress.update(f"[red]Embed failed:[/red] {result.error}")
+        elif result.skipped:
+            progress.update("[yellow]Track already has a cover — skipped.[/yellow]")
+        else:
+            note = f" (backup: {result.backup_path})" if result.backup_path else ""
+            progress.update(f"[green]Embedded cover into track {track_id_str}.[/green]{note}")
