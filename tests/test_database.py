@@ -77,3 +77,19 @@ def test_search_tracks_by_title_artist_album():
 
         # No false positives.
         assert db.search_tracks("nonexistent") == []
+
+
+def test_search_tracks_finds_untagged_by_filename():
+    """A file with no tags (title NULL) is still findable by its filename."""
+    with Database(":memory:") as db:
+        track = Track(
+            path="/music/mystery_track.flac", filename="mystery_track.flac",
+            extension=".flac", file_size=10, modified_time=1.0,
+        )
+        # No tags set at all.
+        db.upsert_track(track)
+
+        assert db.search_tracks("mystery")  # matched by filename
+        assert db.search_tracks("")          # blank query lists everything
+        by_path = db.search_tracks("/music/")
+        assert len(by_path) == 1
