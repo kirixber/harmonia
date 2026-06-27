@@ -32,7 +32,7 @@ class QualityScreen(BaseScreen):
             yield Static("Audio Quality", classes="screen-title")
             with Horizontal():
                 yield Input(
-                    placeholder="Search tracks by title, artist or album…",
+                    placeholder="Search by title, artist, album or filename (blank = list all)…",
                     id="quality-search",
                 )
                 yield Button("Search", id="quality-search-btn", variant="primary")
@@ -91,17 +91,19 @@ class QualityScreen(BaseScreen):
     def _search(self) -> None:
         query = self.query_one("#quality-search", Input).value.strip()
         progress = self.query_one("#quality-progress", Static)
-        if not query:
-            progress.update("[yellow]Type something to search for.[/yellow]")
-            return
-
-        rows = self.library.search_tracks(query, limit=50)
+        # A blank query lists all tracks so users can browse.
+        rows = self.library.search_tracks(query, limit=200)
         dt = self.query_one("#quality-results", DataTable)
         dt.clear()
         self._row_to_id.clear()
 
         if not rows:
-            progress.update(f"[yellow]No tracks match '{query}'.[/yellow]")
+            msg = (
+                "[yellow]Library is empty — scan a folder first.[/yellow]"
+                if not query
+                else f"[yellow]No tracks match '{query}'.[/yellow]"
+            )
+            progress.update(msg)
             return
 
         for row in rows:

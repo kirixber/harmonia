@@ -161,25 +161,39 @@ class Database:
         return self.conn.execute("SELECT * FROM tracks ORDER BY id").fetchall()
 
     def search_tracks(self, query: str, limit: int = 50) -> list[sqlite3.Row]:
-        """Find tracks whose title/artist/album match ``query`` (case-insensitive).
+        """Find tracks matching ``query`` (case-insensitive) for frontend pickers.
 
-        Returns rows with resolved artist/album names so frontends can show a
-        human-friendly picker instead of asking users for internal IDs.
+        Matches title, artist, album **and** filename/path, so files with no
+        tags yet (title is NULL) are still findable by their filename. An
+        empty query lists tracks so users can browse without guessing terms.
+        Returns rows with resolved artist/album names.
         """
-        like = f"%{query.strip()}%"
-        return self.conn.execute(
-            "SELECT t.id, t.path, t.title, t.duration, t.codec, t.bitrate, "
-            "       t.sample_rate, t.bit_depth, "
+        select = (
+            "SELECT t.id, t.path, t.filename, t.title, t.duration, t.codec, "
+            "       t.bitrate, t.sample_rate, t.bit_depth, "
             "       ar.name AS artist_name, al.name AS album_name "
             "FROM tracks t "
             "LEFT JOIN artists ar ON t.artist_id = ar.id "
             "LEFT JOIN albums  al ON t.album_id = al.id "
-            "WHERE t.title LIKE ? COLLATE NOCASE "
+        )
+        query = query.strip()
+        if not query:
+            return self.conn.execute(
+                select + "ORDER BY t.title IS NULL, t.title, t.filename, t.id LIMIT ?",
+                (limit,),
+            ).fetchall()
+
+        like = f"%{query}%"
+        return self.conn.execute(
+            select
+            + "WHERE t.title LIKE ? COLLATE NOCASE "
             "   OR ar.name LIKE ? COLLATE NOCASE "
             "   OR al.name LIKE ? COLLATE NOCASE "
-            "ORDER BY t.title, t.id "
+            "   OR t.filename LIKE ? COLLATE NOCASE "
+            "   OR t.path LIKE ? COLLATE NOCASE "
+            "ORDER BY t.title IS NULL, t.title, t.filename, t.id "
             "LIMIT ?",
-            (like, like, like, limit),
+            (like, like, like, like, like, limit),
         ).fetchall()
 
     def tracks_with_names(self) -> list[sqlite3.Row]:
