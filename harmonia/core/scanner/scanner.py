@@ -20,6 +20,7 @@ from ...utils.logging import get_logger
 from ..metadata import MetadataReader
 from ..metadata.reader import AUDIO_EXTENSIONS
 from ..models import Track
+from mutagen import MutagenError
 
 log = get_logger(__name__)
 
@@ -31,6 +32,8 @@ class ScanResult:
     new_files: int = 0
     updated_files: int = 0
     removed_files: int = 0
+    valid_files: int = 0
+    corrupted_files: int = 0
     warnings: int = 0
     errors: int = 0
 
@@ -43,6 +46,8 @@ class ScanResult:
             "new_files": self.new_files,
             "updated_files": self.updated_files,
             "removed_files": self.removed_files,
+            "valid_files": self.valid_files,
+            "corrupted_files": self.corrupted_files,
             "warnings": self.warnings,
             "errors": self.errors,
         }
@@ -107,12 +112,29 @@ class Scanner:
 
         if not is_new and existing["file_size"] == stat.st_size and \
                 _close(existing["modified_time"], stat.st_mtime):
-            result.scanned_files += 1  # counted as scanned, but unchanged
+            result.scanned_files += 1
+            result.valid_files += 1
             return
 
-        self.index_file(file_path)
+        try:
+            track_id = self.index_file(file_path)
+        except (MutagenError, OSError, ValueError) as exc:
+            result.scanned_files += 1
+            result.corrupted_files += 1
+            log.warning("Failed to index %s: %s", path_str, exc)
+            return
+
+        # Check if file was actually read (has duration, not just extension-based codec)
+        if track_id:
+            row = self.db.get_track(track_id)
+            if row and row["duration"] is None:
+                result.corrupted_files += 1
+                result.valid_files -= 1
+                log.warning("Corrupted/unreadable file (no audio info): %s", path_str)
+                return
 
         result.scanned_files += 1
+        result.valid_files += 1
         if is_new:
             result.new_files += 1
         else:

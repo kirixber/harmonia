@@ -158,11 +158,24 @@ def _migration_v2(conn: sqlite3.Connection) -> None:
     conn.executescript(_V2)
 
 
+# --- v3: add valid_files, corrupted_files to scan_history ---------------------
+
+_V3 = """
+ALTER TABLE scan_history ADD COLUMN valid_files INTEGER DEFAULT 0;
+ALTER TABLE scan_history ADD COLUMN corrupted_files INTEGER DEFAULT 0;
+"""
+
+
+def _migration_v3(conn: sqlite3.Connection) -> None:
+    conn.executescript(_V3)
+
+
 # Ordered list of (target_version, apply_fn). Append new migrations; never
 # edit a released one.
 MIGRATIONS = [
     (1, _migration_v1),
     (2, _migration_v2),
+    (3, _migration_v3),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]

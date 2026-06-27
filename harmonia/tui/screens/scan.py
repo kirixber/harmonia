@@ -58,8 +58,12 @@ class ScanScreen(BaseScreen):
         dt = self.query_one("#scan-results", DataTable)
         dt.clear()
         dt.add_row("Scanned", str(result.scanned_files))
+        dt.add_row("[green]Valid[/green]", str(result.valid_files))
+        dt.add_row("[red]Corrupted[/red]", str(result.corrupted_files))
         dt.add_row("[green]New[/green]", str(result.new_files))
         dt.add_row("[yellow]Updated[/yellow]", str(result.updated_files))
         dt.add_row("[red]Removed[/red]", str(result.removed_files))
+        if result.warnings:
+            dt.add_row("[yellow]Warnings[/yellow]", str(result.warnings))
         if result.errors:
             dt.add_row("[red]Errors[/red]", str(result.errors))
