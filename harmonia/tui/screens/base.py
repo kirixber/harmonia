@@ -22,11 +22,6 @@ class BaseScreen(Screen[None]):
             self._library = Library(check_same_thread=False)
         return self._library
 
-    def on_mount(self) -> None:
-        # Ensure the connection is created on the UI thread, not lazily on
-        # whichever worker thread happens to touch it first.
-        _ = self.library
-
     def on_unmount(self) -> None:
         if self._library is not None:
             self._library.close()
