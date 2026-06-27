@@ -135,6 +135,10 @@ class QualityEngine:
                 bit_depth = getattr(info, "bits_per_sample", 0) or bit_depth
                 channels = getattr(info, "channels", 0) or channels
                 duration = getattr(info, "length", 0) or duration
+
+        # Opus exposes no sample_rate; it always decodes at 48 kHz.
+        if not sample_rate and Path(row["path"]).suffix.lower() == ".opus":
+            sample_rate = 48000
         except Exception:
             pass
 
