@@ -7,6 +7,27 @@ from harmonia.core.metadata.reader import (
 )
 
 
+def test_opus_sample_rate_defaults_to_48k(tmp_path, monkeypatch):
+    """Opus info exposes no sample_rate; the reader must report 48000 Hz."""
+    import harmonia.core.metadata.reader as reader_mod
+
+    class _FakeInfo:
+        length = 30.0
+        bitrate = 224000
+        channels = 2
+        # deliberately no sample_rate / bits_per_sample (mirrors OggOpusInfo)
+
+    class _FakeAudio:
+        info = _FakeInfo()
+        tags = None
+
+    monkeypatch.setattr(reader_mod, "MutagenFile", lambda *a, **k: _FakeAudio())
+    info = MetadataReader().read_info(tmp_path / "song.opus")
+    assert info.sample_rate == 48000
+    assert info.channels == 2
+    assert info.bit_depth is None
+
+
 def test_parsers():
     assert _parse_int("3/12") == 3
     assert _parse_total("3/12") == 12

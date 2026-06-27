@@ -117,11 +117,17 @@ class MetadataReader:
         info = audio.info
         codec = type(audio).__name__.replace("MutagenFile", "") or ext.lstrip(".")
         bit_depth = getattr(info, "bits_per_sample", None)
+
+        sample_rate = getattr(info, "sample_rate", None)
+        # Opus has no sample_rate attribute; it always decodes at 48 kHz.
+        if not sample_rate and ext == ".opus":
+            sample_rate = 48000
+
         return AudioInfo(
             codec=codec,
             duration=getattr(info, "length", None),
             bitrate=getattr(info, "bitrate", None),
-            sample_rate=getattr(info, "sample_rate", None),
+            sample_rate=sample_rate,
             bit_depth=bit_depth if bit_depth else None,
             channels=getattr(info, "channels", None),
             lossless=ext in _LOSSLESS_EXT,
