@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "harmonia"
-version = "0.1.0"
+version = "0.6.0"
 description = "Open-source music library manager for collectors. One backend, many frontends."
 readme = "README.md"
 license = { text = "MIT" }
