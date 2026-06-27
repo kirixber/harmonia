@@ -103,37 +103,49 @@ class QualityEngine:
         return ReplayGain()
 
     def analyze_quality(self, track_id: int) -> QualityMetrics:
-        """Analyze audio quality metrics for a track."""
+        """Analyze audio quality metrics for a track.
+
+        Reads the file live with Mutagen when possible and fills any field
+        the live read does not provide from the values the scanner already
+        indexed in the DB. (A live read of a lossy file legitimately has no
+        ``bits_per_sample``; without the merge that surfaced as ``0``.)
+        """
         row = self.db.get_track(track_id)
         if not row:
             return QualityMetrics(track_id=track_id, codec="", bitrate=0, sample_rate=0,
                                  bit_depth=0, channels=0, duration=0)
 
-        # Try to use mutagen for detailed analysis
+        # Start from the indexed row (authoritative for what the scanner read).
+        codec = row["codec"] or ""
+        bitrate = row["bitrate"] or 0
+        sample_rate = row["sample_rate"] or 0
+        bit_depth = row["bit_depth"] or 0
+        channels = row["channels"] or 0
+        duration = row["duration"] or 0
+
+        # Refine with a live read where the file is still present/readable.
         try:
             from mutagen import File
             audio = File(row["path"])
             if audio and audio.info:
-                return QualityMetrics(
-                    track_id=track_id,
-                    codec=audio.info.__class__.__name__,
-                    bitrate=getattr(audio.info, "bitrate", 0),
-                    sample_rate=getattr(audio.info, "sample_rate", 0),
-                    bit_depth=getattr(audio.info, "bits_per_sample", 0),
-                    channels=getattr(audio.info, "channels", 0),
-                    duration=getattr(audio.info, "length", 0),
-                )
+                info = audio.info
+                codec = type(audio).__name__ or codec
+                bitrate = getattr(info, "bitrate", 0) or bitrate
+                sample_rate = getattr(info, "sample_rate", 0) or sample_rate
+                bit_depth = getattr(info, "bits_per_sample", 0) or bit_depth
+                channels = getattr(info, "channels", 0) or channels
+                duration = getattr(info, "length", 0) or duration
         except Exception:
             pass
 
         return QualityMetrics(
             track_id=track_id,
-            codec=row["codec"] or "",
-            bitrate=row["bitrate"] or 0,
-            sample_rate=row["sample_rate"] or 0,
-            bit_depth=row["bit_depth"] or 0,
-            channels=row["channels"] or 0,
-            duration=row["duration"] or 0,
+            codec=codec,
+            bitrate=bitrate,
+            sample_rate=sample_rate,
+            bit_depth=bit_depth,
+            channels=channels,
+            duration=duration,
         )
 
     def compare_quality(self, track_ids: list[int]) -> list[QualityMetrics]:

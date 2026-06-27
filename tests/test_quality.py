@@ -28,6 +28,22 @@ def test_analyze_reads_real_flac_info(music_root):
         assert m.sample_rate > 0
         assert m.channels >= 1
         assert m.duration > 0
+        # FLAC is lossless: bit depth must be reported, not zero.
+        assert m.bit_depth > 0
+
+
+def test_analyze_falls_back_to_db_when_file_missing(music_root):
+    """If the file is gone, indexed sample_rate/bit_depth still come through."""
+    import os
+
+    with Library(":memory:") as lib:
+        lib.scan(music_root)
+        row = lib.db.iter_tracks()[0]
+        track_id = row["id"]
+        os.remove(row["path"])  # force the live read to fail
+        m = lib.analyze_quality(track_id)
+        assert m.sample_rate == (row["sample_rate"] or 0)
+        assert m.bit_depth == (row["bit_depth"] or 0)
 
 
 def test_compare_and_best_quality(music_root):
